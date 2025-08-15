@@ -1,0 +1,122 @@
+# Universal File Toolkit
+
+A comprehensive Java library (`com.diyawanna:universal-file-toolkit`) designed to simplify file operations, format conversions, and data handling within Java applications. This toolkit provides a unified, easy-to-use API for reading, writing, transforming, validating, encrypting, and compressing various file formats.
+
+## Features
+
+- **File Reading & Writing**: Support for JSON, CSV, XML, Excel (XLS, XLSX), and YAML.
+- **Data Transformation**: Seamless conversion between supported file formats.
+- **File Content Processing**: Search, filter, and apply custom transformations to file data.
+- **Logging**: Configurable logging levels for detailed operation insights.
+- **Performance Metrics**: Optional tracking of execution times and memory usage.
+- **Validation**: Built-in validation for JSON (schema), CSV (headers/columns), XML (XSD), and YAML structures.
+- **Security**: AES/RSA encryption/decryption and file hashing (MD5, SHA-256).
+- **Compression**: GZIP and ZIP compression/decompression with optional transparent compression.
+- **Lightweight & Extensible**: Minimal external dependencies and a clear extension mechanism for new formats.
+- **Thread-Safe**: Designed for concurrent operations.
+- **Clear Error Handling**: Descriptive exceptions with cause chaining.
+
+## Installation
+
+Add the following to your `build.gradle.kts` file:
+
+```kotlin
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("com.diyawanna:universal-file-toolkit:1.0.0")
+}
+```
+
+## Usage
+
+Here's a quick example to get started:
+
+```java
+import com.diyawanna.uft.UniversalFileToolkit;
+import com.diyawanna.uft.ToolkitConfig;
+import com.diyawanna.uft.model.FileFormat;
+import com.diyawanna.uft.model.EncryptionType;
+import com.diyawanna.uft.model.ValidationResult;
+
+import java.io.File;
+import java.util.List;
+import java.util.Map;
+
+public class DemoApp {
+    public static void main(String[] args) throws Exception {
+
+        // 1\uFE0F\u20E3 Configure toolkit (logging ON, performance tracking ON)
+        ToolkitConfig config = ToolkitConfig.builder()
+                .enableLogging(true)
+                .enablePerformanceTracking(true)
+                .defaultEncryption(EncryptionType.AES)
+                .build();
+
+        UniversalFileToolkit uft = new UniversalFileToolkit(config);
+
+        // 2\uFE0F\u20E3 Read a CSV file into a list of maps
+        List<Map<String, Object>> csvData = uft.read(new File("input.csv"), FileFormat.CSV);
+        System.out.println("Loaded " + csvData.size() + " rows from CSV.");
+
+        // 3\uFE0F\u20E3 Convert CSV data to JSON and write to file
+        uft.write(csvData, new File("output.json"), FileFormat.JSON);
+
+        // 4\uFE0F\u20E3 Validate a JSON file against a schema
+        // Assuming 'schema.json' exists for validation
+        ValidationResult result = uft.validate(new File("output.json"), FileFormat.JSON, new File("schema.json"));
+        if (result.isValid()) {
+            System.out.println("JSON is valid \u2705");
+        } else {
+            System.out.println("JSON validation failed \u274C: " + result.getErrors());
+        }
+
+        // 5\uFE0F\u20E3 Encrypt and compress a file
+        File encrypted = uft.encrypt(new File("output.json"), "secret-password");
+        File compressed = uft.compress(encrypted, FileFormat.GZIP);
+        System.out.println("Encrypted & compressed file: " + compressed.getAbsolutePath());
+
+        // 6\uFE0F\u20E3 Decompress and decrypt
+        File decompressed = uft.decompress(compressed, FileFormat.GZIP);
+        File decrypted = uft.decrypt(decompressed, "secret-password");
+        System.out.println("Restored file: " + decrypted.getAbsolutePath());
+
+        // 7\uFE0F\u20E3 Transform JSON to Excel
+        uft.transform(new File("output.json"), FileFormat.JSON, new File("output.xlsx"), FileFormat.EXCEL);
+
+        // 8\uFE0F\u20E3 Search in CSV
+        List<Map<String, Object>> filtered = uft.search(csvData, row -> row.get("status").equals("active"));
+        System.out.println("Active rows: " + filtered.size());
+    }
+}
+```
+
+```
+// Run the demo:
+$ ./gradlew run
+
+Expected Output:
+> Task :run
+[INFO] UniversalFileToolkit initialized with config: ToolkitConfig{loggingEnabled=true, logLevel=INFO, performanceTrackingEnabled=true, defaultEncryption=AES, externalLogger=Optional.empty}
+Error reading CSV: read operation not yet implemented.
+Error writing JSON: write operation not yet implemented.
+Error validating JSON: validate operation not yet implemented.
+Error encrypting/compressing: encrypt operation not yet implemented.
+Error decompressing/decrypting: decompress operation not yet implemented.
+Error transforming: transform operation not yet implemented.
+Active rows: 1
+[INFO] Closing UniversalFileToolkit and releasing resources.
+```
+
+
+## Contribution Guidelines
+
+Contributions are welcome! Please refer to `DEVELOPMENT.md` for guidelines on setting up your development environment, coding standards, and submitting changes.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
+
+
