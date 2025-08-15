@@ -1,0 +1,21 @@
+# Gradle configuration
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+org.gradle.parallel=true
+org.gradle.caching=true
+
+# Project configuration
+group=com.diyawanna
+version=1.0.0
+
+# Sonatype Credentials for publishing
+ossrhUsername=your_username
+ossrhPassword=your_password
+
+# GPG Signing Credentials
+signing.keyId=your_gpg_key_id
+signing.password=your_gpg_password
+# Use the GPG wrapper script
+signing.gnupg.executable=./gpg-wrapper.sh
+
+# Build configuration
+kotlin.code.style=official
