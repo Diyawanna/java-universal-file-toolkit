@@ -1,0 +1,70 @@
+Example Usage of com.diyawanna:universal-file-toolkit
+
+import com.diyawanna.uft.UniversalFileToolkit;
+import com.diyawanna.uft.config.ToolkitConfig;
+import com.diyawanna.uft.format.FileFormat;
+import com.diyawanna.uft.security.EncryptionType;
+import com.diyawanna.uft.validation.ValidationResult;
+
+import java.io.File;
+import java.util.List;
+import java.util.Map;
+
+public class DemoApp {
+    public static void main(String[] args) throws Exception {
+
+        // 1️⃣ Configure toolkit (logging ON, performance tracking ON)
+        ToolkitConfig config = ToolkitConfig.builder()
+                .enableLogging(true)
+                .enablePerformanceTracking(true)
+                .defaultEncryption(EncryptionType.AES)
+                .build();
+
+        UniversalFileToolkit uft = new UniversalFileToolkit(config);
+
+        // 2️⃣ Read a CSV file into a list of maps
+        List<Map<String, Object>> csvData = uft.read(new File("input.csv"), FileFormat.CSV);
+        System.out.println("Loaded " + csvData.size() + " rows from CSV.");
+
+        // 3️⃣ Convert CSV data to JSON and write to file
+        uft.write(csvData, new File("output.json"), FileFormat.JSON);
+
+        // 4️⃣ Validate a JSON file against a schema
+        ValidationResult result = uft.validate(new File("output.json"), FileFormat.JSON, new File("schema.json"));
+        if (result.isValid()) {
+            System.out.println("JSON is valid ✅");
+        } else {
+            System.out.println("JSON validation failed ❌: " + result.getErrors());
+        }
+
+        // 5️⃣ Encrypt and compress a file
+        File encrypted = uft.encrypt(new File("output.json"), "secret-password");
+        File compressed = uft.compress(encrypted, FileFormat.GZIP);
+        System.out.println("Encrypted & compressed file: " + compressed.getAbsolutePath());
+
+        // 6️⃣ Decompress and decrypt
+        File decompressed = uft.decompress(compressed, FileFormat.GZIP);
+        File decrypted = uft.decrypt(decompressed, "secret-password");
+        System.out.println("Restored file: " + decrypted.getAbsolutePath());
+
+        // 7️⃣ Transform JSON to Excel
+        uft.transform(new File("output.json"), FileFormat.JSON, new File("output.xlsx"), FileFormat.EXCEL);
+
+        // 8️⃣ Search in CSV
+        List<Map<String, Object>> filtered = uft.search(csvData, row -> row.get("status").equals("active"));
+        System.out.println("Active rows: " + filtered.size());
+    }
+}
+
+Key Developer Experience Points
+- One entry point: UniversalFileToolkit is the main class, so users don’t have to remember multiple classes.
+- Enum-based formats: FileFormat.JSON, FileFormat.CSV, etc. for clarity.
+- Configurable behavior: Logging, performance tracking, encryption defaults set via ToolkitConfig.
+- Readable methods:
+-- read(file, format)
+-- write(data, file, format)
+-- transform(sourceFile, sourceFormat, targetFile, targetFormat)
+-- validate(file, format, schemaFile)
+-- encrypt(file, password)
+-- compress(file, format)
+-- search(data, predicate)

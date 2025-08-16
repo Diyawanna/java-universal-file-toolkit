@@ -1,0 +1,142 @@
+Project Specification – Universal File Toolkit
+Group ID: com.diyawanna
+Artifact ID: universal-file-toolkit
+Version: 1.0.0
+Java Compatibility: Java 8+ (ensure modular compatibility for Java 11+)
+
+1. Purpose
+Develop a single Java library that provides developers with simple, consistent, and secure APIs for:
+- Reading and writing popular file formats (JSON, CSV, XML, Excel, YAML)
+- Transforming data between formats
+- Performing file content operations
+- Optional logging and performance tracking
+- Built-in validation, encryption, and compression
+This toolkit must eliminate the need for multiple dependencies by bundling and exposing unified, easy-to-use methods.
+
+2. Core Functionalities
+A. File Reading & Writing
+Support read and write for:
+- JSON
+- CSV
+- XML
+- Excel (XLS, XLSX)
+- YAML
+APIs must:
+- Work with Streams and File objects
+- Handle UTF-8 encoding by default (configurable)
+- Allow minimal boilerplate code
+
+B. Data Transformation
+- Convert between supported formats (e.g., JSON → CSV, XML → JSON, YAML → JSON)
+- Preserve structure and metadata where possible
+- Offer both in-memory and streaming transformations for large files
+
+C. File Content Processing
+- Search within files
+- Filter or map data rows/objects
+- Apply custom transformation functions
+
+D. Logging
+- Toggle logging globally or per operation
+- Logging levels: NONE, ERROR, INFO, DEBUG
+- Output to console or provided Logger instance
+
+E. Performance Metrics
+- Optional performance tracking
+- Measure read/write/transform execution times
+- Include memory usage statistics (if enabled)
+- Toggle globally or per call
+
+F. Validation
+- Validate format compliance:
+-- JSON schema validation
+-- CSV header/column count validation
+-- XML schema (XSD) validation
+-- YAML structure validation
+- Return clear, structured validation results
+
+G. Security
+- Encryption/Decryption:
+-- AES (default)
+-- RSA (optional)
+-- Password-based encryption
+- File hashing (MD5, SHA-256) for integrity verification
+
+H. Compression & Optimization
+- GZIP and ZIP compression/decompression
+- Optional transparent compression during write
+- Memory-efficient read/write for large files
+
+3. Non-Functional Requirements
+- Lightweight: Avoid unnecessary dependencies; prefer well-established, small libraries
+- Thread-Safe: Support concurrent operations where possible
+- Extensible: Easy to add more formats or algorithms later
+- Error Handling: Clear, descriptive exceptions with cause chaining
+- Internationalization: Support UTF-8 and locale-based formatting
+
+4. Deliverables
+- Gradle Project with build.gradle.kts ready for deployment to Maven Central
+- Key adjustments for Gradle build -> Gradle Project Type(Use Java Library Plugin:), Java Version, Publishing to Maven Central, Dependencies, Publishing Command
+- JavaDocs for all public APIs
+- Unit Tests (80%+ coverage)
+- Examples Module with sample usage
+- README.md with:
+-- Features list
+-- Installation instructions
+-- Example code snippets
+-- Contribution guidelines
+- CHANGELOG.md for version history
+- License: Apache 2.0
+
+5. Suggested Package Structure
+com.diyawanna.universalfiletoolkit
+  ├── core        # Core API interfaces & base classes
+  ├── formats     # JSON, CSV, XML, Excel, YAML implementations
+  ├── transform   # Format-to-format converters
+  ├── security    # Encryption, hashing
+  ├── validation  # Schema and structure validation
+  ├── compression # GZIP, ZIP handling
+  ├── util        # Common helpers, performance tracker, logging
+  └── examples    # Example classes (optional)
+
+6. External Libraries (Recommended)
+- Jackson for JSON/YAML
+- Apache Commons CSV for CSV
+- Apache POI for Excel
+- Java XML API (JAXB, DOM, SAX) for XML
+- BouncyCastle for encryption
+- Apache Commons Compress for GZIP/ZIP
+
+7. Publishing Requirements
+- Sign artifacts with GPG
+- Deploy to OSSRH (Sonatype)
+- Pass Maven Central validation (javadoc, sources, POM metadata)
+- Provide project site or GitHub repository
+
+developer {
+  id.set("wsmr")
+  name.set("Diyawanna")
+  email.set("tech@diyawanna.com")
+}
+url.set("https://github.com/Diyawanna/java-universal-file-toolkit")
+
+# Central Portal Token Credentials
+ossrhUsername=...
+ossrhPassword=...
+# GPG Signing Credentials
+signing.keyId=....
+signing.password=....
+# Use the GPG wrapper script
+signing.gnupg.executable=/Path/to/gpg-wrapper.sh
+
+My current gpg-wrapper.sh file,
+#!/bin/bash
+unset GPG_BATCH
+export GPG_TTY=$(tty)
+# Create a temporary passphrase file
+PASSPHRASE_FILE=$(mktemp)
+echo "...." > "$PASSPHRASE_FILE"
+# Use the passphrase file instead of stdin
+gpg --no-batch --passphrase-file "$PASSPHRASE_FILE" --pinentry-mode loopback "$@"
+# Clean up the temporary file
+rm -f "$PASSPHRASE_FILE"

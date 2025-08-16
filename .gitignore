@@ -1,0 +1,48 @@
+# Gradle
+.gradle/
+/build/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.tar.gz
+
+# Maven
+/target/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+**/.DS_Store
+thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*~
+.#*
+#*#
+*.bak
+*.swp
+*.swo
+
+# GPG related files (sensitive)
+*.gpg
+*.asc
+
+
+# environment files
+#gradle.properties
+#build.gradle.kts
+#gpg-wrapper.sh

@@ -1,0 +1,421 @@
+This is a complete, producible API design document for com.diyawanna:universal-file-toolkit v1.0.0.
+It contains package structure, class/interface names, full method signatures (Java-style), parameter/return expectations, behaviors, error-handling, streaming/async options, extension points, and notes for implementers.
+No implementation code — just a precise, unambiguous API spec backend developer can implement exactly.
+
+Universal File Toolkit — API Design (v1.0.0)
+Maven/Gradle coordinates (package-level):
+- GroupId: com.diyawanna
+- ArtifactId: universal-file-toolkit
+- Base package: com.diyawanna.uft (uft = universal file toolkit)
+
+
+1. High-level overview
+Primary goals:
+- Single entry point for reading/writing multiple file formats (JSON, CSV, XML, Excel, YAML).
+- Transformations between formats.
+- Validation, encryption/decryption, compression, performance metrics, toggleable logging.
+- Small, clear set of APIs for both simple and advanced uses.
+- Streaming-friendly APIs for large files.
+- Extensible plugin architecture for adding formats.
+Main entry class: UniversalFileToolkit.
+
+
+2. Packages & responsibilities
+- com.diyawanna.uft — main entrypoint, config, exceptions
+- com.diyawanna.uft.model — DTOs, enums, results
+- com.diyawanna.uft.api — public interfaces (Reader, Writer, Transformer, Validator, SecurityService, CompressionService)
+- com.diyawanna.uft.impl — (implementation classes; not part of public API spec but referenced)
+- com.diyawanna.uft.plugin — format plugin interface for extensions
+- com.diyawanna.uft.util — utilities (performance, logging adapter)
+- com.diyawanna.uft.stream — streaming types (RecordStream, Row)
+
+
+3. Main classes / interfaces (public API)
+NOTE: all public classes are public final or public interface as appropriate. Method signatures below use Java style and reference standard JDK types (InputStream, OutputStream, File, Path, CompletableFuture, Stream, etc.)
+
+3.1 UniversalFileToolkit
+Package: com.diyawanna.uft
+Primary façade. Construct via ToolkitConfig.
+Signatures:
+public final class UniversalFileToolkit {
+    // factory
+    public UniversalFileToolkit(ToolkitConfig config);
+
+    // BASIC sync reading
+    public <T> T read(File source, FileFormat format, Class<T> targetType) throws ToolkitException;
+    public <T> T read(InputStream sourceStream, FileFormat format, Class<T> targetType) throws ToolkitException;
+
+    // Return tabular data (list of rows) for CSV/Excel
+    public List<Map<String, Object>> readAsTable(File source, FileFormat format) throws ToolkitException;
+    public Iterator<Map<String, Object>> readAsTableIterator(File source, FileFormat format) throws ToolkitException;
+
+    // STREAMING read (Java Stream)
+    public Stream<Map<String, Object>> streamAsTable(Path source, FileFormat format) throws ToolkitException;
+
+    // Writing
+    public void write(Object data, File target, FileFormat format) throws ToolkitException;
+    public void write(Object data, OutputStream targetStream, FileFormat format) throws ToolkitException;
+
+    // Transform format to format (file-to-file)
+    public void transform(File source, FileFormat sourceFormat, File target, FileFormat targetFormat, TransformOptions options) throws ToolkitException;
+
+    // Validation
+    public ValidationResult validate(File source, FileFormat format, ValidationOptions options) throws ToolkitException;
+
+    // Security
+    public File encrypt(File source, EncryptionOptions options) throws ToolkitException;
+    public File decrypt(File source, EncryptionOptions options) throws ToolkitException;
+
+    // Compression
+    public File compress(File source, CompressionType compressionType) throws ToolkitException;
+    public File decompress(File source) throws ToolkitException;
+
+    // Search/filter convenience
+    public List<Map<String, Object>> filter(File source, FileFormat format, Predicate<Map<String, Object>> predicate) throws ToolkitException;
+
+    // Async forms (non-blocking)
+    public CompletableFuture<Void> writeAsync(Object data, Path target, FileFormat format);
+    public CompletableFuture<List<Map<String,Object>>> readAsTableAsync(Path source, FileFormat format);
+
+    // Lifecycle
+    public void close(); // release resources if any
+}
+Behavior notes:
+- targetType for read may be JsonNode.class, Map.class, List.class, a POJO class, or a library-specific node type (doc should explain supported types). Implementations use Jackson for JSON/YAML etc; for tabular formats, if targetType is not a tabular type, toolkit will attempt conversion.
+- IO methods must detect charset; default UTF-8 unless specified via options.
+- All methods throw ToolkitException for any failure; specific subtypes for validation/security/compression errors.
+
+3.2 ToolkitConfig
+Package: com.diyawanna.uft
+Immutable config built with builder.
+Signatures:
+public final class ToolkitConfig {
+    // builder
+    public static ToolkitConfig.Builder builder();
+
+    // getters
+    public boolean isLoggingEnabled();
+    public boolean isPerformanceTrackingEnabled();
+    public LogLevel getLogLevel();
+    public EncryptionType getDefaultEncryption();
+    public Charset getDefaultCharset();
+    public Optional<Logger> getExternalLogger(); // optional SLF4J adapter or custom
+
+    public static final class Builder {
+        public Builder enableLogging(boolean value);
+        public Builder enablePerformanceTracking(boolean value);
+        public Builder defaultEncryption(EncryptionType type);
+        public Builder defaultCharset(Charset cs);
+        public Builder externalLogger(Logger logger);
+        public ToolkitConfig build();
+    }
+}
+Notes:
+- Logger is org.slf4j.Logger by default; support a custom logger adapter.
+- defaultEncryption can be null/optional.
+
+3.3 FileFormat (enum)
+Package: com.diyawanna.uft.model
+Values:
+public enum FileFormat {
+    JSON, CSV, XML, EXCEL, YAML, GZIP, ZIP // formats supported natively. GZIP/ZIP used for compression operations.
+}
+
+3.4 TransformOptions
+Package: com.diyawanna.uft.model
+Fields/options:
+- boolean preserveHeaders
+- int maxRows (for sampling)
+- boolean streamMode (true => streaming transform)
+- Map<String,String> columnMappings
+- WriteOptions targetWriteOptions
+Builder style:
+public final class TransformOptions {
+    public static Builder builder();
+    // getters...
+}
+
+3.5 WriteOptions / ReadOptions
+Used to control formatting, encoding, CSV separators, date formats.
+Key properties (not exhaustive):
+- Charset charset
+- String csvDelimiter
+- boolean csvHasHeader
+- String dateFormat
+- boolean prettyPrintJson
+- CompressionType compressWith (optional)
+Builder pattern.
+
+3.6 ValidationResult and ValidationError
+Package: com.diyawanna.uft.model
+Signatures:
+public final class ValidationResult {
+    public boolean isValid();
+    public List<ValidationError> getErrors();
+}
+
+public final class ValidationError {
+    public String getPath(); // e.g., "$.items[2].price"
+    public String getMessage();
+    public ValidationSeverity getSeverity(); // ERROR or WARNING
+}
+
+3.7 EncryptionOptions
+Package: com.diyawanna.uft.model
+Properties:
+- EncryptionType type (AES, RSA, PASSWORD)
+- Optional<KeyPair> rsaKeyPair or PublicKey/PrivateKey
+- Optional<char[]> password
+- Optional<String> cipherTransformation (e.g., "AES/GCM/NoPadding")
+- boolean useSalt
+- int iterations (for PBKDF2)
+Builder style.
+
+3.8 EncryptionType (enum)
+Values: AES, RSA, PBKDF2_PASSWORD, NONE.
+
+3.9 CompressionType (enum)
+Values: GZIP, ZIP, NONE.
+
+3.10 ToolkitException hierarchy
+Package: com.diyawanna.uft
+Base:
+public class ToolkitException extends Exception {
+    public ToolkitException(String message, Throwable cause);
+}
+Subtypes:
+- public class ValidationException extends ToolkitException
+- public class SecurityException extends ToolkitException
+- public class CompressionException extends ToolkitException
+- public class FormatException extends ToolkitException
+- public class IOProcessingException extends ToolkitException
+Each includes details (error codes or underlying causes).
+
+
+4. Public API interfaces (for implementers & extension)
+
+4.1 Reader<T>
+Package: com.diyawanna.uft.api
+public interface Reader<T> {
+    T read(File source, ReadOptions options) throws ToolkitException;
+    T read(InputStream source, ReadOptions options) throws ToolkitException;
+    Stream<Map<String,Object>> stream(File source, ReadOptions options) throws ToolkitException; // for tabular
+}
+
+4.2 Writer
+public interface Writer {
+    void write(Object data, File target, WriteOptions options) throws ToolkitException;
+    void write(Object data, OutputStream out, WriteOptions options) throws ToolkitException;
+}
+
+4.3 Transformer
+public interface Transformer {
+    void transform(File source, FileFormat sourceFormat, File target, FileFormat targetFormat, TransformOptions options) throws ToolkitException;
+}
+
+4.4 Validator
+public interface Validator {
+    ValidationResult validate(File input, FileFormat format, ValidationOptions options) throws ToolkitException;
+}
+
+4.5 SecurityService
+public interface SecurityService {
+    File encrypt(File source, EncryptionOptions options) throws SecurityException;
+    File decrypt(File source, EncryptionOptions options) throws SecurityException;
+    byte[] hash(File source, HashType type) throws ToolkitException;
+}
+
+4.6 CompressionService
+public interface CompressionService {
+    File compress(File source, CompressionType type) throws CompressionException;
+    File decompress(File source) throws CompressionException;
+}
+
+4.7 FormatPlugin
+Package: com.diyawanna.uft.plugin
+Extension point for third-party format handlers.
+public interface FormatPlugin {
+    boolean supports(FileFormat format);
+    Reader<?> createReader();
+    Writer createWriter();
+}
+Toolkit should discover plugins registered via ServiceLoader or via explicit ToolkitConfig.Builder.addPlugin(FormatPlugin p).
+
+
+5. Data model conventions
+- Tabular data: List<Map<String, Object>> rows where keys are column names and values are boxed primitives/strings/dates/byte[].
+- For JSON/YAML/XML full trees, use com.fasterxml.jackson.databind.JsonNode as canonical node type (exposed via APIs).
+- Excel read will attempt to convert sheets into list of rows per sheet; support multi-sheet options in ReadOptions.
+
+
+6. Streaming & big-file behavior
+- All readers & transformers must support streaming (do not load full content into RAM) when ReadOptions.streamMode = true or TransformOptions.streamMode = true.
+- For CSV/Excel streaming: streamAsTable returns Stream<Map<String,Object>>; implementers must make stream AutoCloseable or document the need to call close() or use try-with-resources on supplied stream.
+- readAsTableIterator returns Iterator that lazily reads rows; the underlying InputStream must be closed when iterator is exhausted or when UniversalFileToolkit.close() is called.
+
+
+7. Logging & performance
+- Use ToolkitConfig.enableLogging and LogLevel to control output.
+- By default, log via SLF4J if present; accept external logger via ToolkitConfig.externalLogger.
+- ToolkitConfig.enablePerformanceTracking toggles collection of a PerformanceReport object returned optionally with operations (method overloads that return (Result, PerformanceReport) or OperationResult<T> wrapper).
+- PerformanceReport should include:
+-- long elapsedMillis
+-- long bytesRead
+-- long bytesWritten
+-- long peakMemoryBytes (best-effort)
+-- Map<String,Object> stageTimings (e.g., parseTime, transformTime, ioTime)
+Provide optional API:
+public OperationResult<T> readWithPerformance(File source, FileFormat format, Class<T> type) throws ToolkitException;
+public static final class OperationResult<T> {
+    public T getResult();
+    public PerformanceReport getPerformanceReport();
+}
+
+
+8. Validation details
+- JSON: support JSON Schema Draft 7/2019 (configurable); for v1.0 support Draft-07 default.
+- XML: XSD validation.
+- CSV: header checks, required columns, data type checks (if schema provided).
+- Validation API returns ValidationResult with all errors/warnings but also throws ValidationException for fatal validation requested mode (if options specify failFast=true).
+ValidationOptions:
+- FailFast boolean
+- Optional<File> schemaFile (JSON schema / XSD)
+- List<String> requiredColumns (for CSV)
+- boolean allowAdditionalProperties (for JSON)
+
+
+9. Security details
+- Default encryption: AES-GCM (or AES-CBC with HMAC if GCM not available). Allow plugin of BouncyCastle.
+- For password-based encryption use PBKDF2 with configurable salt and iterations. Salt must be random if not provided.
+- Provide explicit Key/KeyPair operations in security util classes (not necessarily in façade).
+- Hashing: support MD5, SHA-1, SHA-256, SHA-512.
+- All secrets (password char[]) must be zeroed after use where possible.
+
+
+10. Compression details
+- For compress(File source, GZIP), create .gz file adjacent by default; for ZIP, allow multiple files and specify entry name(s) via options.
+- decompress(File file) auto-detects GZIP/ZIP by magic header and returns decompressed file(s). For ZIP containing multiple entries, return a directory or a DecompressionResult object with mapping.
+DecompressionResult:
+public final class DecompressionResult {
+    public Map<String, File> getEntries(); // entry name -> extracted File
+    public File getSingleFile(); // if only single entry
+}
+
+
+11. Error handling & exception semantics
+- Always throw ToolkitException or subtype on error.
+- Use clear messages and preserve cause.
+- For partial failures (e.g., validating many rows), return ValidationResult and do not throw unless failFast configured.
+- For IO interruptions, throw IOProcessingException.
+
+
+12. Async & concurrency
+- Async methods return CompletableFuture<T>. They should use a ForkJoinPool.commonPool() by default but allow user to pass an Executor via ToolkitConfig.Builder.
+- All public classes should be thread-safe for concurrent reads/writes as long as separate files/streams are used. Document which classes are NOT thread-safe (e.g., builder objects).
+
+
+13. Extensibility & plugin system
+- FormatPlugin (see above) must be discoverable via ServiceLoader (SPI) and registerable via ToolkitConfig.Builder.addPlugin.
+- Allow adding custom Validator or Transformer implementations in config.
+
+
+14. Example method contracts (plain English)
+- read(File source, FileFormat format, Class<T> targetType):
+-- Attempts to parse source using the parser for format.
+-- If targetType is List.class or Map.class, returns a canonical Java structure (List/Map).
+-- Throws FormatException if data structure incompatible with targetType.
+-- If source missing -> IOProcessingException.
+- write(Object data, File target, FileFormat format):
+-- Serializes data appropriately. For tabular formats, if data is List<Map<...>> or Collection<POJO> use that; for JSON expects node/POJO.
+-- Creates parent directories if needed.
+-- Respects WriteOptions for encoding/settings.
+-- Ensures atomic write where possible (write to temp file and move/rename).
+- transform(source, sourceFormat, target, targetFormat):
+-- Uses minimal intermediate representation; if streaming possible, perform streaming convert.
+-- Preserves headers for CSV if options demand.
+-- On failure, leaves a failed temporary file and ensures no partial overwrite of target.
+
+
+15. API usability & ergonomics
+- Provide small helper static convenience methods for common quick tasks, e.g., UniversalFileToolkit.readJson(File) or ToolkitUtils.toJsonString(Object) in a ToolkitUtils helper class.
+- Provide Examples module packaged with the artifact or hosted on the repository README showing 6-8 common flows (CSV→JSON, JSON→Excel, encrypt+compress, streaming filter, validate JSON schema, async read).
+
+
+16. Testing & quality requirements (for developer)
+- Unit tests: 80%+ coverage for impl classes. Use JUnit 5.
+- Integration tests:
+-- Large-file streaming (simulate large CSV > 1 GB using generated content)
+-- Encryption round-trip
+-- Compression round-trip (ZIP/GZIP)
+-- JSON schema validation
+-- Cross-format transform correctness (CSV→JSON→Excel)
+- Performance benchmarks for streaming vs in-memory for large files (report results in CI artifacts).
+
+
+17. JVM & dependency guidance
+- Target: Java 8+ (build with toolchains for 8 and 11 compatibility).
+- Optional runtime dependencies (shade or optional):
+-- Jackson (JSON/YAML) — provide as api or implementation? Prefer implementation but document required transitive libs in README.
+-- Apache Commons CSV
+-- Apache POI (for Excel)
+-- Apache Commons Compress
+-- BouncyCastle (optional, but recommended)
+- Keep external API surface independent of heavy deps where possible (expose JsonNode for JSON).
+
+
+18. Release & artifacts
+- Default artifact coordinates:
+-- com.diyawanna:universal-file-toolkit:1.0.0
+- Provide sourcesJar, javadocJar.
+- Provide a small CLI (optional) in a separate artifact universal-file-toolkit-cli for quick file transforms via command-line.
+
+
+19. Example Java signatures summary (compact)
+(This is a one-page quick reference of the most-used public signatures for developers using the library.)
+public final class UniversalFileToolkit {
+    public UniversalFileToolkit(ToolkitConfig config);
+
+    public <T> T read(File source, FileFormat format, Class<T> targetType) throws ToolkitException;
+    public List<Map<String,Object>> readAsTable(File source, FileFormat format) throws ToolkitException;
+    public Iterator<Map<String,Object>> readAsTableIterator(File source, FileFormat format) throws ToolkitException;
+    public Stream<Map<String,Object>> streamAsTable(Path source, FileFormat format) throws ToolkitException;
+
+    public void write(Object data, File target, FileFormat format) throws ToolkitException;
+
+    public void transform(File source, FileFormat sourceFormat, File target, FileFormat targetFormat, TransformOptions options) throws ToolkitException;
+
+    public ValidationResult validate(File source, FileFormat format, ValidationOptions options) throws ToolkitException;
+
+    public File encrypt(File source, EncryptionOptions options) throws ToolkitException;
+    public File decrypt(File source, EncryptionOptions options) throws ToolkitException;
+
+    public File compress(File source, CompressionType type) throws ToolkitException;
+    public DecompressionResult decompress(File source) throws ToolkitException;
+
+    public void close();
+}
+
+
+20. Documentation & README checklist (deliverables for the developer)
+- Quickstart: 5-step example covering read, transform, write, encrypt, compress.
+- Full API reference (javadoc) for all public classes & interfaces.
+- Migration notes (if using older versions in future).
+- Security section: how encryption keys are stored/handled, best practices.
+- Performance notes: when to use streaming vs in-memory.
+- Examples directory with runnable examples.
+
+
+21. Versioning & roadmap guidance
+- v1.0.0: Core formats + features above.
+- v1.x roadmap items: streaming Excel writing, performance optimizations, more validation schema versions, additional compression algorithms, platform-native native bindings (if needed).
+- Follow semantic versioning.
+
+
+22. Implementation notes for the AI/backend developer (concise)
+- Build a small core that delegates format work to format-specific modules/classes.
+- Use Jackson as canonical object mapper; convert CSV/Excel → intermediate List<Map<String,Object>> then to JsonNode for JSON/YAML/XML transforms.
+- Prioritize streaming implementations for CSV and JSON (Jackson streaming API).
+- Security: rely on Java Crypto API; use BouncyCastle for extra ciphers if configured.
+- Compression: use Apache Commons Compress.
+- Expose extension points (FormatPlugin) and discover via ServiceLoader.
+- Provide thorough unit + integration tests and CI pipeline to run them.
